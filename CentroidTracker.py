@@ -2,6 +2,7 @@ from scipy.spatial import distance as dist
 from collections import OrderedDict
 import numpy as np
 
+
 class CentroidTracker():
     def __init__(self,maxDist):
         """Initiate the centroid tracker class
