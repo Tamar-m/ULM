@@ -98,7 +98,6 @@ def tracks2output(path,supermats,FR,num_bubbles,fwhmx,fwhmy, fovx, fovy,tracks_d
     vel_y = np.zeros(im_shape)
     vel_x = np.zeros(im_shape)
     DensityIm_time = np.zeros((im_shape[0],im_shape[1],(num_frames+30)//100*supermats[-1]))
-    DensityIm_time = 0 #just for pala for now
     for k,v in tracks_dict.items():
         test = tracks_dict.items()
         for track_num, track in v.items():
@@ -116,8 +115,8 @@ def tracks2output(path,supermats,FR,num_bubbles,fwhmx,fwhmy, fovx, fovy,tracks_d
                 roundx = arr[:,0]
                 roundy = arr[:,1] 
 
-                # roundx_raw = np.round(track[:,0]*scale).astype(int)
-                # roundy_raw = np.round(track[:,1]*scale).astype(int)
+                roundx_raw = np.round(track[:,0]*scale).astype(int)
+                roundy_raw = np.round(track[:,1]*scale).astype(int)
                 # f, (ax1, ax2) = plt.subplots(1, 2)
                 # ax1.set_title('Not interpolated')
                 # ax1.scatter(roundx_raw, roundy_raw, c='blue', lw=0.1)
@@ -130,32 +129,32 @@ def tracks2output(path,supermats,FR,num_bubbles,fwhmx,fwhmy, fovx, fovy,tracks_d
 
                 output[roundx,roundy] += 1
                 l = len(track[:,0])
-                av_vel_x_pix = np.mean(np.diff(savgol_filter(track[:,0],min((l- np.mod(l-1,2)),5),2))*scale)
-                av_vel_y_pix = np.mean(np.diff(savgol_filter(track[:,1],min((l- np.mod(l-1,2)),5),2))*scale)
-                vel_y[roundx[1:],roundy[1:]] += av_vel_x_pix*FR*ppmx
-                vel_x[roundx[1:],roundy[1:]] += av_vel_y_pix*FR*ppmy
+                av_vel_x_pix = np.mean(np.diff(savgol_filter(track[:,0],min((l- np.mod(l-1,2)),5),2)))
+                av_vel_y_pix = np.mean(np.diff(savgol_filter(track[:,1],min((l- np.mod(l-1,2)),5),2)))
+                vel_y[roundx, roundy] += av_vel_x_pix*FR*ppmx
+                vel_x[roundx, roundy] += av_vel_y_pix*FR*ppmy
         vel_y[output>0] /= output[output>0]
         vel_x[output>0] /= output[output>0]
         velocity = np.sqrt(vel_x**2+vel_y**2)
-    # for i in range(2,np.shape(DensityIm_time)[2]):
-    #     DensityIm_time[:,:,i] += DensityIm_time[:,:,i-1]
+    for i in range(2,np.shape(DensityIm_time)[2]):
+        DensityIm_time[:,:,i] += DensityIm_time[:,:,i-1]
     return output,velocity,DensityIm_time
 
 
-ULMinfo = dict(path = 'C:\\Users\\admin\\Desktop\\Data\\23.05.29- NBs\\300_100\\0.02\\NBs_',
+ULMinfo = dict(path = 'C:\\Users\\admin\\Desktop\\Data\\simulations\\sim_',
 supermats = range(1,2),
 FR = 250,
-num_bubbles = 70, 
+num_bubbles = 3, 
 fwhmx = .1, #for our transducer .025
 fwhmy = .1, #for our transducer .075
-fovx = [-6.912, 6.912],
-fovy = [16, 23])
+fovx = [-6.912, 6.912], #[-75,75], 
+fovy = [16, 23]) #[0,150]) 
 
 tracks_dict, im_shape = localization(**ULMinfo,SVD = True, display_on = True,tracking = 'optic_flow')
 
 
 loaded_objects = pickle.load(open(ULMinfo['path']+"_all_tracks.p", "rb" ))
-superres, velocity, DensityIm_time = tracks2output(**ULMinfo, tracks_dict = loaded_objects[0], min_track_length = 3, im_shape = loaded_objects[1], num_frames = loaded_objects[2], scale = 2, interpolate = False)
+superres, velocity, DensityIm_time = tracks2output(**ULMinfo, tracks_dict = loaded_objects[0], min_track_length = 5, im_shape = loaded_objects[1], num_frames = loaded_objects[2], scale = 1, interpolate = False)
 experiment_results = {"superres":superres, "velocity":velocity, "DensityIm_time":DensityIm_time,"im_shape":loaded_objects[1]}
 savemat(ULMinfo['path'] + "experiment_results.mat", experiment_results)
 savemat(ULMinfo['path'] + "experiment_info.mat", ULMinfo)

@@ -2,6 +2,7 @@ from collections import OrderedDict
 import numpy as np
 import cv2
 from scipy.spatial import distance as dist
+import matplotlib.pyplot as plt 
 
 
 
@@ -19,24 +20,48 @@ class OpticFlow():
         self.lk_params = dict( winSize  = (7,7), 
                   maxLevel = 1, 
                   criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.01))
-    def track(self,new_frame,new_points,framenum):
+        arrow = np.zeros((7,7), dtype=np.uint8)
+        for i in range(7):
+            for j in range(7):
+                if i-j ==3 or i+j == 3:
+                    arrow[i,j] = 1
+        self.arrow = arrow
+    def track(self,new_frame,new_points,framenum): 
         self.framenum = framenum
-
-
         if self.framenum == 0:
             self.pointer = np.zeros((len(new_points)))
             self.init_points = new_points
+            # mask = cv2.adaptiveThreshold(new_frame,255, cv2.ADAPTIVE_THRESH_MEAN_C,\
+            #     cv2.THRESH_BINARY,17,-10)  
+            # new_frame = np.zeros_like(new_frame)
+            new_frame[np.floor(new_points[:,0]).astype(int),new_points[:,1].astype(int)] = 255 
+            # new_frame[mask==0] = 0
+            # new_frame = cv2.dilate(new_frame, self.arrow)
             self.old_frame = new_frame
             for i in range(0,len(new_points)):
                 self.pointer[i] = i
                 self.tracks[i] = np.array((new_points[i][0],new_points[i][1],self.framenum))
                 
         else:
-            test = self.init_points.reshape(-1, 1, 2).astype(np.float32)
-            test2 = self.old_frame.astype(np.uint8)
-            of_points, st, err = cv2.calcOpticalFlowPyrLK(self.old_frame.astype(np.uint8), new_frame.astype(np.uint8), self.init_points.reshape(-1, 1, 2).astype(np.float32), None, **self.lk_params)
+            # mask = cv2.adaptiveThreshold(new_frame,255, cv2.ADAPTIVE_THRESH_MEAN_C,\
+            #     cv2.THRESH_BINARY,17,-10)  
+            # new_frame = np.zeros_like(new_frame)
+            new_frame[np.floor(new_points[:,0]).astype(int),new_points[:,1].astype(int)] = 255 
+            # new_frame[mask==0] = 0
+            # new_frame = cv2.dilate(new_frame, self.arrow)
+
+            # plt.figure()
+            # plt.imshow(self.old_frame)
+            # plt.show()
+            of_points, st, err = cv2.calcOpticalFlowPyrLK(self.old_frame.astype(np.uint8),
+                                                           new_frame.astype(np.uint8),
+                                                             self.init_points.reshape(-1, 1, 2).astype(np.float32),
+                                                               None, **self.lk_params)
+            
             of_points[st == 0] = np.inf
             of_points = of_points.reshape(-1, 2)
+            of_points = np.flip(of_points)
+            
 
             D = dist.cdist(of_points, new_points)
             rows = D.min(axis=1).argsort()
@@ -68,7 +93,7 @@ class OpticFlow():
                 new_pointer[i] = next+n
                 n+=1
             self.pointer = new_pointer
-            self.init_points = new_points
+            self.init_points = np.flip(new_points)
             self.old_frame = new_frame
 
 

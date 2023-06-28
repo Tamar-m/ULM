@@ -82,7 +82,7 @@ class Processing:
         ppmx = ((fovx[1]-fovx[0]))/im.shape[1]
         ppmy = ((fovy[1]-fovy[0]))/im.shape[0]
         # kernel = np.ones((np.rint(fwhmy/ppmy).astype(int),np.rint(fwhmx/ppmx/2).astype(int)),np.uint8)
-        kernel = np.ones((2,2),np.uint8)
+        kernel = np.ones((3,3),np.uint8)
         mask = cv2.dilate(mask,kernel,iterations = 1)
         intensity_im = im*mask
         props = regionprops(label(intensity_im>0), intensity_image=intensity_im)
@@ -99,7 +99,7 @@ class Processing:
             x: track to interpolate
         Returns:
             interpolated and smoothed track using savitzky-golay filter"""
-        N = 100
+        N = 300
         t, xp = np.linspace(0, 1, N), np.linspace(0, 1, len(x))
         return np.interp(t, xp, savgol_filter(x,min((len(x) - np.mod(len(x)-1,2)),5),2))
     
