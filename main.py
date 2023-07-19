@@ -29,7 +29,7 @@ def localization(path,supermats,FR,num_bubbles,fwhmx, fwhmy, fovx, fovy, SVD=Tru
 
     processing = Processing()
     ct = CentroidTracker(3)
-    OptFlow = OpticFlow(2)
+    OptFlow = OpticFlow(1)
     
     # sr = cv2.dnn_superres.DnnSuperResImpl_create()
     # sr.readModel("./models/FSRCNN_x2.pb")
@@ -50,7 +50,7 @@ def localization(path,supermats,FR,num_bubbles,fwhmx, fwhmy, fovx, fovy, SVD=Tru
             # im = sr.upsample(im)
             # im_filt = cv2.fastNlMeansDenoising(im, None, 7, 5, 11)
             im_filt = im
-            coordinates = peak_local_max(image = im_filt,min_distance=3,num_peaks = num_bubbles) 
+            coordinates = peak_local_max(image = im_filt,min_distance=6,num_peaks = num_bubbles) 
             disp_im = cv2.merge([im_filt,im_filt,im_filt])
             coords_localized = processing.weighted_av(im_filt,coordinates,fwhmy,fwhmx,fovy,fovx)
             disp_im[np.round(coords_localized[:,0]).astype(int),np.round(coords_localized[:,1]).astype(int),:] = [0,0,255]
@@ -62,10 +62,10 @@ def localization(path,supermats,FR,num_bubbles,fwhmx, fwhmy, fovx, fovy, SVD=Tru
             elif tracking == 'optic_flow':
                 OptFlow.track(im_filt,coords_localized,i)
         if tracking == 'CT':
-            ct.total_tracks[s] = {k: v for k, v in ct.tracks.items() if len(v) > 3}
+            ct.total_tracks[s] = {k: v for k, v in ct.tracks.items()} # if len(v) > 3
             total_tracks = ct.total_tracks
         elif tracking == 'optic_flow':
-            OptFlow.total_tracks[s] = {k: v for k, v in OptFlow.tracks.items() if len(v) > 3}
+            OptFlow.total_tracks[s] = {k: v for k, v in OptFlow.tracks.items()} # if len(v) > 3
             total_tracks = OptFlow.total_tracks
 
     pickle.dump([total_tracks,im.shape,num_frames], open(path+"_all_tracks.p", "wb" ))
@@ -95,6 +95,7 @@ def tracks2output(path,supermats,FR,num_bubbles,fwhmx,fwhmy, fovx, fovy,tracks_d
     ppmx = ((fovx[1]-fovx[0]))/im_shape[1]
     ppmy = ((fovy[1]-fovy[0]))/im_shape[0]
     output = np.zeros(im_shape)
+    vel_counts = np.zeros(im_shape)
     vel_y = np.zeros(im_shape)
     vel_x = np.zeros(im_shape)
     DensityIm_time = np.zeros((im_shape[0],im_shape[1],(num_frames+30)//100*supermats[-1]))
@@ -125,46 +126,52 @@ def tracks2output(path,supermats,FR,num_bubbles,fwhmx,fwhmy, fovx, fovy,tracks_d
                 # ax2.set_title('Interpolated')
                 # ax2.scatter(roundx, roundy, c='blue', lw=0.1)
                 # plt.show()
-                # DensityIm_time[roundx_raw,roundy_raw,((track[:,2]//100)+(k-1)*num_frames//100).astype(int)] += 1
+                DensityIm_time[roundx_raw,roundy_raw,((track[:,2]//100)+(k-1)*num_frames//100).astype(int)] += 1
 
                 output[roundx,roundy] += 1
                 l = len(track[:,0])
-                av_vel_x_pix = np.mean(np.diff(savgol_filter(track[:,0],min((l- np.mod(l-1,2)),5),2)))
-                av_vel_y_pix = np.mean(np.diff(savgol_filter(track[:,1],min((l- np.mod(l-1,2)),5),2)))
-                vel_y[roundx, roundy] += av_vel_x_pix*FR*ppmx
-                vel_x[roundx, roundy] += av_vel_y_pix*FR*ppmy
-        vel_y[output>0] /= output[output>0]
-        vel_x[output>0] /= output[output>0]
+                av_vel_x_pix = np.mean(np.diff(savgol_filter(track[:,0],min((l- np.mod(l-1,2)),5),2))) #np.mean(np.diff(track[:,0])) 
+                av_vel_y_pix = np.mean(np.diff(savgol_filter(track[:,1],min((l- np.mod(l-1,2)),5),2))) #np.mean(np.diff(track[:,1])) 
+                if (av_vel_y_pix < 0): # and (av_vel_x_pix > 0):
+                    vel_y[roundx, roundy] += av_vel_x_pix*FR*ppmx
+                    vel_x[roundx, roundy] += av_vel_y_pix*FR*ppmy
+                    vel_counts[roundx, roundy] += 1
+            else: 
+                roundx_raw = np.round(track[:,0]*scale).astype(int)
+                roundy_raw = np.round(track[:,1]*scale).astype(int)
+                output[roundx_raw,roundy_raw] += 1
+        vel_y[vel_counts>0] /= vel_counts[vel_counts>0]
+        vel_x[vel_counts>0] /= vel_counts[vel_counts>0]
         velocity = np.sqrt(vel_x**2+vel_y**2)
     for i in range(2,np.shape(DensityIm_time)[2]):
         DensityIm_time[:,:,i] += DensityIm_time[:,:,i-1]
     return output,velocity,DensityIm_time
 
 
-ULMinfo = dict(path = 'C:\\Users\\admin\\Desktop\\Data\\simulations\\sim_',
-supermats = range(1,2),
-FR = 250,
-num_bubbles = 3, 
+ULMinfo = dict(path = 'C:\\Users\\admin\\Desktop\\Data\\23.07.16 - new phantoms\\microfluidic phantom\\attempt 1\\MBs_',
+supermats = range(1,9), 
+FR = 100,
+num_bubbles = 25, 
 fwhmx = .1, #for our transducer .025
 fwhmy = .1, #for our transducer .075
-fovx = [-6.912, 6.912], #[-75,75], 
-fovy = [16, 23]) #[0,150]) 
+fovx = [-6.912, 6.912], #[-75,75],  
+fovy = [15, 22]) #[0,150]) 
 
 tracks_dict, im_shape = localization(**ULMinfo,SVD = True, display_on = True,tracking = 'optic_flow')
 
 
 loaded_objects = pickle.load(open(ULMinfo['path']+"_all_tracks.p", "rb" ))
-superres, velocity, DensityIm_time = tracks2output(**ULMinfo, tracks_dict = loaded_objects[0], min_track_length = 5, im_shape = loaded_objects[1], num_frames = loaded_objects[2], scale = 1, interpolate = False)
+superres, velocity, DensityIm_time = tracks2output(**ULMinfo, tracks_dict = loaded_objects[0], min_track_length = 3, im_shape = loaded_objects[1], num_frames = loaded_objects[2], scale = 1, interpolate = False)
 experiment_results = {"superres":superres, "velocity":velocity, "DensityIm_time":DensityIm_time,"im_shape":loaded_objects[1]}
 savemat(ULMinfo['path'] + "experiment_results.mat", experiment_results)
 savemat(ULMinfo['path'] + "experiment_info.mat", ULMinfo)
 
 plt.figure(1)
 plt.imshow(superres**(1/2),cmap = 'hot')
-plt.savefig(ULMinfo['path'] + "superres.png")
+plt.savefig(ULMinfo['path'] + "superresolution.png")
 plt.figure(2)
 plt.imshow(velocity,cmap = plt.cm.nipy_spectral)
-plt.savefig(ULMinfo['path'] + "velocity.png")
+plt.savefig(ULMinfo['path'] + "velocitymap.png")
 clb = plt.colorbar()
 clb.ax.set_title('mm/sec')
 plt.show()
