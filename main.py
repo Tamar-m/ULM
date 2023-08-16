@@ -130,9 +130,9 @@ def tracks2output(path,supermats,FR,num_bubbles,fwhmx,fwhmy, fovx, fovy,tracks_d
 
                 output[roundx,roundy] += 1
                 l = len(track[:,0])
-                av_vel_x_pix = np.mean(np.diff(savgol_filter(track[:,0],min((l- np.mod(l-1,2)),5),2))) #np.mean(np.diff(track[:,0])) 
-                av_vel_y_pix = np.mean(np.diff(savgol_filter(track[:,1],min((l- np.mod(l-1,2)),5),2))) #np.mean(np.diff(track[:,1])) 
-                if (av_vel_y_pix < 0): # and (av_vel_x_pix > 0):
+                av_vel_x_pix = (track[-1,0] - track[0,0])/len(track[:,0]) # np.mean(np.diff(savgol_filter(track[:,0],min((l- np.mod(l-1,2)),5),2))) #np.mean(np.diff(track[:,0])) 
+                av_vel_y_pix = (track[-1,1] - track[0,1])/len(track[:,1]) # np.mean(np.diff(savgol_filter(track[:,1],min((l- np.mod(l-1,2)),5),2))) #np.mean(np.diff(track[:,1])) 
+                if (av_vel_y_pix > 0): # and (av_vel_x_pix > 0):
                     vel_y[roundx, roundy] += av_vel_x_pix*FR*ppmx
                     vel_x[roundx, roundy] += av_vel_y_pix*FR*ppmy
                     vel_counts[roundx, roundy] += 1
@@ -151,17 +151,17 @@ def tracks2output(path,supermats,FR,num_bubbles,fwhmx,fwhmy, fovx, fovy,tracks_d
 ULMinfo = dict(path = 'C:\\Users\\admin\\Desktop\\Data\\23.07.16 - new phantoms\\microfluidic phantom\\attempt 1\\MBs_',
 supermats = range(1,9), 
 FR = 100,
-num_bubbles = 25, 
+num_bubbles = 20, 
 fwhmx = .1, #for our transducer .025
 fwhmy = .1, #for our transducer .075
 fovx = [-6.912, 6.912], #[-75,75],  
 fovy = [15, 22]) #[0,150]) 
 
-tracks_dict, im_shape = localization(**ULMinfo,SVD = True, display_on = True,tracking = 'optic_flow')
+# tracks_dict, im_shape = localization(**ULMinfo,SVD = True, display_on = True,tracking = 'optic_flow')
 
 
 loaded_objects = pickle.load(open(ULMinfo['path']+"_all_tracks.p", "rb" ))
-superres, velocity, DensityIm_time = tracks2output(**ULMinfo, tracks_dict = loaded_objects[0], min_track_length = 3, im_shape = loaded_objects[1], num_frames = loaded_objects[2], scale = 1, interpolate = False)
+superres, velocity, DensityIm_time = tracks2output(**ULMinfo, tracks_dict = loaded_objects[0], min_track_length = 4, im_shape = loaded_objects[1], num_frames = loaded_objects[2], scale = 1, interpolate = False)
 experiment_results = {"superres":superres, "velocity":velocity, "DensityIm_time":DensityIm_time,"im_shape":loaded_objects[1]}
 savemat(ULMinfo['path'] + "experiment_results.mat", experiment_results)
 savemat(ULMinfo['path'] + "experiment_info.mat", ULMinfo)
