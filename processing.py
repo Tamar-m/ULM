@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 from skimage.measure import label, regionprops
 from scipy.signal import savgol_filter
+from skimage.feature import peak_local_max
 
 class Processing:
     def __init__(self):
@@ -65,7 +66,7 @@ class Processing:
         return im
 
     @staticmethod
-    def weighted_av(im, coordinates, fwhmy,fwhmx,fovy,fovx):
+    def weighted_av(im, coordinates):
         """Localize PSF center with weighted average
         
         Args: 
@@ -79,10 +80,10 @@ class Processing:
             coords: the new coordinates localized using the weighted average of the intensity within the PSF shape"""
         mask = np.zeros(im.shape)
         mask[coordinates[:,0],coordinates[:,1]] = 1
-        ppmx = ((fovx[1]-fovx[0]))/im.shape[1]
-        ppmy = ((fovy[1]-fovy[0]))/im.shape[0]
+        # ppmx = ((fovx[1]-fovx[0]))/im.shape[1]
+        # ppmy = ((fovy[1]-fovy[0]))/im.shape[0]
         # kernel = np.ones((np.rint(fwhmy/ppmy).astype(int),np.rint(fwhmx/ppmx/2).astype(int)),np.uint8)
-        kernel = np.ones((2,5),np.uint8)
+        kernel = np.ones((2,8),np.uint8)
         mask = cv2.dilate(mask,kernel,iterations = 1)
         intensity_im = im*mask
         props = regionprops(label(intensity_im>0), intensity_image=intensity_im)
@@ -103,11 +104,72 @@ class Processing:
         t, xp = np.linspace(0, 1, N), np.linspace(0, 1, len(x))
         return np.interp(t, xp, savgol_filter(x,min((len(x) - np.mod(len(x)-1,2)),5),2))
     
+
     @staticmethod
-    def optic_flow(im, points):
-        lk_params = dict( winSize  = (7,7), 
-                  maxLevel = 1,
-                  criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.01))
+    def brightest_points(image, num_bubbles):
+        """Localization using brightest points (may be better for in-vivo)
+        Args:
+            im: the frame to localize bubbles in
+            num points: estimated number of bubbles per frame (try different options to optimize)
+        Returns:
+            coords: coordinates of localized bubbles"""
+        coordinates = peak_local_max(image = image,min_distance=6,num_peaks = num_bubbles) 
+        coords_localized = Processing.weighted_av(image,coordinates)
+        return coords_localized
+    
+    @staticmethod
+    def adaptive_thresh(image):
+        """Localization using adaptive threshold and peak climbing
+        Args:
+        Returns:"""
+        peaks = np.zeros_like(image)
+        filtered = cv2.bilateralFilter(image, d=7, sigmaColor=160, sigmaSpace=160)
+        mask = cv2.adaptiveThreshold(filtered,255, cv2.ADAPTIVE_THRESH_MEAN_C,\
+                cv2.THRESH_BINARY,9,-8)
+        filtered[mask==0] = 0
+        im_erode = cv2.erode(filtered, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2,2))) #changed to (2,2) from 3
+        im_erode = cv2.morphologyEx(im_erode, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (1,1))) 
+        labels = label(im_erode>0)
+        props = regionprops(labels, intensity_image=image)
+
+        for obj in props:
+            mask = (image == obj.max_intensity) * (labels == obj.label)
+            peaks[mask] = image[mask]
+
+
+        peaks2 = np.zeros((filtered.shape[0]+2, filtered.shape[1]+2), np.uint8)
+        labels = label(peaks)
+        props2 = regionprops(labels, intensity_image=image)
+
+        for obj2 in props2:
+
+            c = obj2.weighted_centroid
+
+            cy = int(c[0])
+            cx = int(c[1])
+
+            l, inp, peaks2, bb = cv2.floodFill(np.float32(filtered), peaks2, (cx,cy), newVal=255, loDiff=0, upDiff=30, flags=cv2.FLOODFILL_MASK_ONLY)
+        
+        peaks2 = peaks2[1:-1, 1:-1]
+ 
+    # Phase 3 - Get actual CoM    
+        labels = label(peaks2)
+        props3 = regionprops(labels, intensity_image=image)
+        found_peaks = []
+
+        for obj3 in props3:
+
+            c = obj3.weighted_centroid
+
+            cy = int(c[0])
+            cx = int(c[1])        
+            found_peaks.append(np.array([cy,cx]))
+
+    # Phase 4 - Prevent double peaks
+        return np.array(found_peaks)
+        # peaks[mask] = sampled_im[mask]
+
+
     
 
 

@@ -82,9 +82,9 @@ class OpticFlow():
                     next_track = np.append(next_track,self.framenum)
                     pnt = self.pointer[row]
                     new_pointer[col] = pnt
-                    test1 = self.tracks[pnt][-1][0:2]
-                    test2 = next_track[0:2]
-                    test3 = math.dist(test1,test2)
+                    # test1 = self.tracks[pnt][-1][0:2]
+                    # test2 = next_track[0:2]
+                    # test3 = math.dist(test1,test2)
                     if math.dist(self.tracks[pnt][-1][0:2],next_track[0:2]) <= 3:
                         self.tracks.update({pnt:np.vstack((self.tracks[pnt],(next_track)))})
                     usedRows.add(row)
