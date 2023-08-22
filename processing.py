@@ -1,7 +1,7 @@
 from scipy.io import loadmat
 import numpy as np
 import cv2
-from skimage.measure import label, regionprops
+from skimage.measure import label, regionprops, regionprops_table
 from scipy.signal import savgol_filter
 from skimage.feature import peak_local_max
 
@@ -80,18 +80,17 @@ class Processing:
             coords: the new coordinates localized using the weighted average of the intensity within the PSF shape"""
         mask = np.zeros(im.shape)
         mask[coordinates[:,0],coordinates[:,1]] = 1
-        # ppmx = ((fovx[1]-fovx[0]))/im.shape[1]
-        # ppmy = ((fovy[1]-fovy[0]))/im.shape[0]
-        # kernel = np.ones((np.rint(fwhmy/ppmy).astype(int),np.rint(fwhmx/ppmx/2).astype(int)),np.uint8)
         kernel = np.ones((2,8),np.uint8)
         mask = cv2.dilate(mask,kernel,iterations = 1)
         intensity_im = im*mask
-        props = regionprops(label(intensity_im>0), intensity_image=intensity_im)
-        coords = []
-        for obj in props:
-            c = obj.weighted_centroid
-            coords.append(np.array([c[0],c[1]]))
-        return np.array(coords)
+        props = regionprops_table(label_image = label(intensity_im>0), intensity_image=intensity_im, properties=['centroid_weighted'])
+        coords = np.column_stack([props['centroid_weighted-0'],props['centroid_weighted-1']])
+        # props = regionprops(label(intensity_im>0), intensity_image=intensity_im)
+        # coords = []
+        # for obj in props:
+        #     c = obj.weighted_centroid
+        #     coords.append(np.array([c[0],c[1]]))
+        return coords
     
     @staticmethod
     def interp(x):
@@ -120,14 +119,16 @@ class Processing:
     @staticmethod
     def adaptive_thresh(image):
         """Localization using adaptive threshold and peak climbing
-        Args:
-        Returns:"""
+        Args: 
+            im: the frame to localize bubbles in
+        Returns:
+            coords: coordinates of localized bubbles"""
         peaks = np.zeros_like(image)
         filtered = cv2.bilateralFilter(image, d=7, sigmaColor=160, sigmaSpace=160)
         mask = cv2.adaptiveThreshold(filtered,255, cv2.ADAPTIVE_THRESH_MEAN_C,\
-                cv2.THRESH_BINARY,9,-8)
+                cv2.THRESH_BINARY,17,-17) # these are parameters you may need to play with to get good results!
         filtered[mask==0] = 0
-        im_erode = cv2.erode(filtered, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2,2))) #changed to (2,2) from 3
+        im_erode = cv2.erode(filtered, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2,2))) 
         im_erode = cv2.morphologyEx(im_erode, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (1,1))) 
         labels = label(im_erode>0)
         props = regionprops(labels, intensity_image=image)
@@ -151,23 +152,13 @@ class Processing:
             l, inp, peaks2, bb = cv2.floodFill(np.float32(filtered), peaks2, (cx,cy), newVal=255, loDiff=0, upDiff=30, flags=cv2.FLOODFILL_MASK_ONLY)
         
         peaks2 = peaks2[1:-1, 1:-1]
- 
-    # Phase 3 - Get actual CoM    
+
         labels = label(peaks2)
-        props3 = regionprops(labels, intensity_image=image)
-        found_peaks = []
+        peaks_list = regionprops_table(label_image = labels, intensity_image=image, properties=['centroid_weighted'])
+        found_peaks = np.column_stack([peaks_list['centroid_weighted-0'],peaks_list['centroid_weighted-1']])
 
-        for obj3 in props3:
+        return found_peaks
 
-            c = obj3.weighted_centroid
-
-            cy = int(c[0])
-            cx = int(c[1])        
-            found_peaks.append(np.array([cy,cx]))
-
-    # Phase 4 - Prevent double peaks
-        return np.array(found_peaks)
-        # peaks[mask] = sampled_im[mask]
 
 
     
