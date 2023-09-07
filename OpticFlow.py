@@ -2,7 +2,6 @@ from collections import OrderedDict
 import numpy as np
 import cv2
 from scipy.spatial import distance as dist
-import matplotlib.pyplot as plt 
 import math
 
 

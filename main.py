@@ -4,12 +4,10 @@ from OpticFlow import OpticFlow
 import numpy as np
 import scipy as sc
 import cv2
-from collections import OrderedDict
 import pickle
 from matplotlib import pyplot as plt
 import scipy
 from scipy.io import savemat
-from scipy.interpolate import RegularGridInterpolator
 from scipy.signal import savgol_filter
 
 def localization(path,supermats,FR,num_bubbles,fovx, fovy, SVD=True,display_on=True,tracking='CT', loc_method = 'brightest_points'):
@@ -28,7 +26,7 @@ def localization(path,supermats,FR,num_bubbles,fovx, fovy, SVD=True,display_on=T
             tracking: 'CT' for centroid tracker, 'optic_flow' for optic flow estimation
             loc_method: 'brightest_points' for brightest points in image or 'adaptive_thresh' for adaptive threshold per frame
         Returns:
-            ct.total_tracks: dictionary of all tracks in the form of [x,y,framenum]
+            ct.total_tracks: dictionary of all tracks in the form of [x,y,framenum], dictionary key is arbitrary track number
             saves all tracks using pickle so image construction can be preformed without repeating localization"""
 
     processing = Processing()
@@ -91,9 +89,9 @@ def tracks2output(path,supermats,FR,num_bubbles, fovx, fovy,tracks_dict,min_trac
         fovx: data size along x axis in mm. Example: [-6,6]
         fovy: data size along depth axis in mm. Example: [5,16]
         tracks_dict: dictionary containing all tracks calculated for data
-        min_track_length: minimal track length to use. Bubbles in tracks under this length are not used for reconstruction
+        min_track_length: minimal track length to use. Tracks under this length are not used for reconstruction of velocity maps
         im_shape: shape of original data (in pixels)
-        scale: how large to upscale the image (larger than 2)
+        scale: how large to upscale the image- even numbers (2,4,6...)
         num_frames: number of frames in each supermat
         scale: scale to upsample the final superresolved image (1: no upsampling)
         interpolate: whether or not to interpolate the final tracks in the super-resolved image
@@ -130,31 +128,24 @@ def tracks2output(path,supermats,FR,num_bubbles, fovx, fovy,tracks_dict,min_trac
 
                 roundx_raw = np.round(track[:,0]*scale).astype(int)
                 roundy_raw = np.round(track[:,1]*scale).astype(int)
-                # f, (ax1, ax2) = plt.subplots(1, 2)
-                # ax1.set_title('Not interpolated')
-                # ax1.scatter(roundx_raw, roundy_raw, c='blue', lw=0.1)
-                # for i, txt in enumerate(track[:,2]):
-                #     ax1.annotate(txt, (track[i,0], track[i,1]))
-                # ax2.set_title('Interpolated')
-                # ax2.scatter(roundx, roundy, c='blue', lw=0.1)
-                # plt.show()
                 DensityIm_time[roundx_raw,roundy_raw,((track[:,2]//100)+(k-1)*num_frames//100).astype(int)] += 1
                 
-                # output[roundx,roundy] += 1
                 l = len(track[:,0])
                 av_vel_x_pix =  np.mean(np.diff(savgol_filter(track[:,0],min((l- np.mod(l-1,2)),5),2))) # scale*(track[-1,0] - track[0,0])/len(track[:,0]) # 
                 av_vel_y_pix =   np.mean(np.diff(savgol_filter(track[:,1],min((l- np.mod(l-1,2)),5),2))) # scale*(track[-1,1] - track[0,1])/len(track[:,1]) # 
                 # if (av_vel_y_pix > 0): # and (av_vel_x_pix > 0): # used this for some difficut data to improve velocity map because we know the flow direction
-                vel_y[roundx, roundy] += av_vel_x_pix*FR*ppmx
+                vel_y[roundx, roundy] += av_vel_x_pix*FR*ppmx # the velocity tracks are always interpolated
                 vel_x[roundx, roundy] += av_vel_y_pix*FR*ppmy
                 vel_counts[roundx, roundy] += 1
-            else: 
+            else: # here we also add the single bubbles to final superresolution image (even if they could not be tracked)
                 roundx_raw = np.round(track[:,0]*scale).astype(int)
                 roundy_raw = np.round(track[:,1]*scale).astype(int)
+            # if interpolate is true, add interpolated tracks to superresolution image
             if interpolate & len(track) > 1:
                 output[roundx,roundy] += 1
             else:
                 output[roundx_raw,roundy_raw] += 1
+                DensityIm_time[roundx_raw,roundy_raw,((track[:,2]//100)+(k-1)*num_frames//100).astype(int)] += 1
 
     vel_y[vel_counts>0] /= vel_counts[vel_counts>0]
     vel_x[vel_counts>0] /= vel_counts[vel_counts>0] 
@@ -166,10 +157,10 @@ def tracks2output(path,supermats,FR,num_bubbles, fovx, fovy,tracks_dict,min_trac
     return output,vel_x,vel_y,velocity,DensityIm_time
 
 
-ULMinfo = dict(path = 'C:\\Users\\admin\\Desktop\\Data\\22.12.28 - different width phantoms\\300_100\\flow rate 0.032 FR 80 V 20 1\\MBs_',
-supermats = range(1,6), # this is the number of data blocks you have (for example, 4 blocks of 1500 frames)
-FR = 80, 
-num_bubbles = 25, 
+ULMinfo = dict(path = 'C:\\Users\\tamar\\Desktop\\microfluidic\\MBs_',
+supermats = range(1,5), # this is the number of data blocks you have (for example, 4 blocks of 1500 frames)
+FR = 100, 
+num_bubbles = 40, 
 fovx = [-6.912, 6.912],  
 fovy = [15, 22]) 
 
@@ -177,7 +168,7 @@ tracks_dict, im_shape = localization(**ULMinfo,SVD = True, display_on = True,tra
 
 
 loaded_objects = pickle.load(open(ULMinfo['path']+"_all_tracks.p", "rb" ))
-superres, vel_x, vel_y, velocity, DensityIm_time = tracks2output(**ULMinfo, tracks_dict = loaded_objects[0], min_track_length = 4,
+superres, vel_x, vel_y, velocity, DensityIm_time = tracks2output(**ULMinfo, tracks_dict = loaded_objects[0], min_track_length = 3,
                                                                   im_shape = loaded_objects[1], num_frames = loaded_objects[2], scale = 2,
                                                                     interpolate = True)
 
