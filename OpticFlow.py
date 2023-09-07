@@ -8,7 +8,8 @@ import math
 
 class OpticFlow():
 
-    # sparse optic flow 
+    # sparse optic flow estimation. Point movement is estimated with optic flow, closest localized point to estimation is considered next bubble. 
+    # Idea: use optic flow to localize points around estimation (instead of first localizating all points)
 
     def __init__(self,max_dist = 1):
         self.tracks = OrderedDict()
@@ -69,7 +70,7 @@ class OpticFlow():
             for (row, col, ind) in zip(rows, cols, range(D.shape[0])):
                 if row in usedRows or col in usedCols:
                     continue
-                # if D[row,col]>self.max_dist:
+                # if D[row,col]>self.max_dist: # this was used to check distance between estimation and localized point, removed 
                 #     st[row] = 0
                 #     usedRows.add(row)
                 #     usedCols.add(col)
@@ -79,7 +80,7 @@ class OpticFlow():
                     next_track = np.append(next_track,self.framenum)
                     pnt = self.pointer[row]
                     new_pointer[col] = pnt
-                    if math.dist(self.tracks[pnt][-1][0:2],next_track[0:2]) <= 4:
+                    if math.dist(self.tracks[pnt][-1][0:2],next_track[0:2]) <= 4: # this checks distance between newest track point and last track point
                         self.tracks.update({pnt:np.vstack((self.tracks[pnt],(next_track)))})
                     usedRows.add(row)
                     usedCols.add(col)

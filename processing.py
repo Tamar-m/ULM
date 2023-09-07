@@ -117,7 +117,7 @@ class Processing:
         
         filtered = cv2.bilateralFilter(image, d=7, sigmaColor=160, sigmaSpace=160)
         mask = cv2.adaptiveThreshold(filtered,255, cv2.ADAPTIVE_THRESH_MEAN_C,\
-                cv2.THRESH_BINARY,17,-10) # these are parameters you may need to play with to get good results
+                cv2.THRESH_BINARY,17,-12) # these are parameters you may need to play with to get good results
         filtered[mask==0] = 0
         # im_erode = cv2.erode(filtered, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2,2))) 
         # close small holes that are probably noise

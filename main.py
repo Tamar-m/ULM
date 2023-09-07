@@ -30,8 +30,8 @@ def localization(path,supermats,FR,num_bubbles,fovx, fovy, SVD=True,display_on=T
             saves all tracks using pickle so image construction can be preformed without repeating localization"""
 
     processing = Processing()
-    ct = CentroidTracker(3)
-    OptFlow = OpticFlow(1)
+    ct = CentroidTracker(4)
+    OptFlow = OpticFlow(4)
     
     sr = cv2.dnn_superres.DnnSuperResImpl_create()
     sr.readModel("./models/FSRCNN_x2.pb")
@@ -157,14 +157,14 @@ def tracks2output(path,supermats,FR,num_bubbles, fovx, fovy,tracks_dict,min_trac
     return output,vel_x,vel_y,velocity,DensityIm_time
 
 
-ULMinfo = dict(path = 'C:\\Users\\tamar\\Desktop\\microfluidic\\MBs_',
-supermats = range(1,5), # this is the number of data blocks you have (for example, 4 blocks of 1500 frames)
+ULMinfo = dict(path = 'C:\\Users\\admin\\Desktop\\Data\\22.12.28 - different width phantoms\\300_100\\flow rate 0.032 FR 80 V 20 1\\MBs_',
+supermats = range(1,6), # this is the number of data blocks you have (for example, 4 blocks of 1500 frames)
 FR = 100, 
 num_bubbles = 40, 
 fovx = [-6.912, 6.912],  
 fovy = [15, 22]) 
 
-tracks_dict, im_shape = localization(**ULMinfo,SVD = True, display_on = True,tracking = 'CT', loc_method = 'brightest_points')
+tracks_dict, im_shape = localization(**ULMinfo,SVD = True, display_on = True,tracking = 'optic_flow', loc_method = 'adaptive_thresh')
 
 
 loaded_objects = pickle.load(open(ULMinfo['path']+"_all_tracks.p", "rb" ))
